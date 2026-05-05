@@ -87,3 +87,38 @@ def test_failed_task_returns_zero_answer():
         )
     assert result.failed is True
     assert result.answer == ""
+
+from evaluation.judge import Judge, CriterionScores, compute_coverage_score, compute_citation_score, composite_score
+
+def test_compute_coverage_score_zero_sources():
+    assert compute_coverage_score(0) == 0.0
+
+def test_compute_coverage_score_five_sources():
+    assert compute_coverage_score(5) == 10.0
+
+def test_compute_coverage_score_ten_sources_capped():
+    assert compute_coverage_score(10) == 10.0
+
+def test_compute_coverage_score_two_sources():
+    assert abs(compute_coverage_score(2) - 4.0) < 0.01
+
+def test_compute_citation_score_all_cited():
+    text = "Fact A [source1]. Fact B [source2]. Fact C [source3]."
+    assert compute_citation_score(text) == 10.0
+
+def test_compute_citation_score_none_cited():
+    text = "Fact A. Fact B. Fact C."
+    assert compute_citation_score(text) == 0.0
+
+def test_composite_score_formula():
+    scores = CriterionScores(accuracy=8.0, coverage=6.0, synthesis=7.0, citation=5.0)
+    expected = (8.0*0.35 + 6.0*0.25 + 7.0*0.25 + 5.0*0.15) * 10.0
+    assert abs(composite_score(scores) - expected) < 0.001
+
+def test_composite_score_perfect():
+    scores = CriterionScores(accuracy=10.0, coverage=10.0, synthesis=10.0, citation=10.0)
+    assert composite_score(scores) == 100.0
+
+def test_composite_score_zero():
+    scores = CriterionScores(accuracy=0.0, coverage=0.0, synthesis=0.0, citation=0.0)
+    assert composite_score(scores) == 0.0
