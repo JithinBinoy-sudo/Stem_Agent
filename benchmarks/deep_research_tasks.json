@@ -1,0 +1,54 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "query": "What is the primary mechanism by which mRNA vaccines trigger an immune response, which two companies first received emergency use authorization for COVID-19 mRNA vaccines in the US, and in what month and year did each receive authorization?",
+      "reference_answer": "mRNA vaccines work by delivering messenger RNA that instructs cells to produce the SARS-CoV-2 spike protein, which triggers the immune system to produce antibodies. Pfizer-BioNTech received the first EUA on December 11, 2020, and Moderna received its EUA on December 18, 2020.",
+      "key_facts": [
+        "mRNA instructs cells to produce spike protein",
+        "Pfizer-BioNTech EUA: December 11, 2020",
+        "Moderna EUA: December 18, 2020"
+      ]
+    },
+    {
+      "id": 2,
+      "query": "Who invented the World Wide Web, in what year did they first propose the concept, and at which institution were they working at the time?",
+      "reference_answer": "Tim Berners-Lee invented the World Wide Web. He first proposed the concept in March 1989 while working at CERN, the European Organization for Nuclear Research, in Geneva, Switzerland.",
+      "key_facts": [
+        "Inventor: Tim Berners-Lee",
+        "Year of proposal: 1989",
+        "Institution: CERN"
+      ]
+    },
+    {
+      "id": 3,
+      "query": "What is the largest moon of Saturn by diameter, what gas primarily composes its atmosphere, and who discovered it and in what year?",
+      "reference_answer": "Titan is Saturn's largest moon with a diameter of about 5,150 km. Its atmosphere is composed primarily of nitrogen (approximately 98.4%), with small amounts of methane. Titan was discovered by Dutch astronomer Christiaan Huygens in 1655.",
+      "key_facts": [
+        "Largest moon: Titan",
+        "Atmosphere: primarily nitrogen (~98.4%)",
+        "Discoverer: Christiaan Huygens, 1655"
+      ]
+    },
+    {
+      "id": 4,
+      "query": "In which city is the International Criminal Court headquartered, in what year was the Rome Statute adopted to establish the court, and who was the subject of the ICC's first ever conviction?",
+      "reference_answer": "The International Criminal Court is headquartered in The Hague, Netherlands. The Rome Statute that established the court was adopted on July 17, 1998. The ICC's first conviction was handed down on March 14, 2012, against Thomas Lubanga Dyilo, a Congolese warlord convicted of war crimes for recruiting child soldiers.",
+      "key_facts": [
+        "Headquarters: The Hague, Netherlands",
+        "Rome Statute adopted: 1998",
+        "First conviction: Thomas Lubanga Dyilo, 2012"
+      ]
+    },
+    {
+      "id": 5,
+      "query": "What programming language did Guido van Rossum create, when was version 1.0 publicly released, and what is the origin of the language's name?",
+      "reference_answer": "Guido van Rossum created the Python programming language. Python version 1.0 was released in January 1994. The language was named after the BBC comedy television series 'Monty Python's Flying Circus', which van Rossum was a fan of — not after the snake.",
+      "key_facts": [
+        "Creator: Guido van Rossum",
+        "Version 1.0 released: January 1994",
+        "Named after: Monty Python's Flying Circus (BBC comedy series)"
+      ]
+    }
+  ]
+}
