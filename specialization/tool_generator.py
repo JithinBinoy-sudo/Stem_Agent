@@ -8,6 +8,22 @@ from discovery.llm_introspection import ToolSpec
 
 PREBUILT_TOOLS = {"web_search", "url_reader"}
 
+_VALID_JSON_TYPES = {"string", "number", "integer", "boolean", "array", "object", "null"}
+
+
+def _coerce_json_schema(meta: dict) -> dict:
+    raw_type = meta.get("type", "string")
+    t = raw_type if raw_type in _VALID_JSON_TYPES else "string"
+    out = {"type": t, "description": meta.get("description", "")}
+    if t == "array":
+        items = meta.get("items")
+        if not isinstance(items, dict) or "type" not in items:
+            items = {"type": "string"}
+        out["items"] = items
+    elif t == "object":
+        out["properties"] = meta.get("properties", {})
+    return out
+
 CODE_GEN_PROMPT = """Write a Python function implementing the following tool.
 
 Tool name: {name}
@@ -37,8 +53,8 @@ class ToolGenerator:
     def spec_to_schema(self, spec: ToolSpec) -> dict:
         from discovery.llm_introspection import sanitize_tool_name
         properties = {
-            name: {"type": meta["type"], "description": meta.get("description", "")}
-            for name, meta in spec.parameters.items()
+            pname: _coerce_json_schema(meta)
+            for pname, meta in spec.parameters.items()
         }
         return {
             "type": "function",
