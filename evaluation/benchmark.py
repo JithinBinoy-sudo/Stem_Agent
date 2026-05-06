@@ -17,16 +17,25 @@ class BenchmarkRunner:
         self._client = OpenAI(api_key=config.OPENAI_API_KEY)
 
     def run_task(self, task: dict, system_prompt: str, tool_schemas: list) -> TaskResult:
+        wrapped_query = (
+            f"{task['query']}\n\n"
+            "Before answering, you MUST: (1) call web_search at least twice with different queries, "
+            "(2) call url_reader on at least 5 results from DIFFERENT domains, "
+            "(3) write your answer with [https://source-url] after every factual sentence. "
+            "Do not answer from memory."
+        )
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": task["query"]},
+            {"role": "user", "content": wrapped_query},
         ]
         tool_calls_made = 0
         try:
-            for _ in range(config.MAX_TOOL_CALLS_PER_TASK):
+            for step in range(config.MAX_TOOL_CALLS_PER_TASK):
                 kwargs = {"model": config.MODEL_STRONG, "messages": messages}
                 if tool_schemas:
                     kwargs["tools"] = tool_schemas
+                    if step == 0:
+                        kwargs["tool_choice"] = "required"
                 response = self._client.chat.completions.create(**kwargs)
                 choice = response.choices[0]
 
