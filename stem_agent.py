@@ -32,10 +32,16 @@ class StemAgent:
             is_final_attempt = (iteration == config.MAX_ITERATIONS - 1)
 
             print(f"[Iteration {iteration}] Evaluating...")
+            eval_schemas = spec_result["tool_schemas"]
+            if getattr(config, "BENCHMARK_BASE_TOOLS_ONLY", False):
+                eval_schemas = [
+                    s for s in eval_schemas
+                    if s["function"]["name"] in {"web_search", "url_reader"}
+                ]
             scores = evaluation.evaluate(
                 tasks,
                 spec_result["system_prompt"],
-                spec_result["tool_schemas"],
+                eval_schemas,
                 is_final=is_final_attempt,
             )
             composite = scores["average"]["composite"]
