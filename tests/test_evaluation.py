@@ -63,9 +63,10 @@ def test_react_loop_calls_tool_then_stops():
     assert "Guido" in result.answer
 
 def test_react_loop_halts_at_max_tool_calls():
+    import config
     runner = BenchmarkRunner()
     tool_response = make_mock_response(tool_call={"name": "web_search", "args": {"query": "test"}})
-    responses = [tool_response] * 15
+    responses = [tool_response] * (config.MAX_TOOL_CALLS_PER_TASK + 5)
     with patch("evaluation.benchmark.get_tool") as mock_get_tool:
         mock_get_tool.return_value = lambda query: {"results": []}
         with patch.object(runner._client.chat.completions, "create", side_effect=responses):
@@ -74,7 +75,7 @@ def test_react_loop_halts_at_max_tool_calls():
                 system_prompt="You are helpful.",
                 tool_schemas=[{"type": "function", "function": {"name": "web_search"}}],
             )
-    assert result.tool_calls_made == 10
+    assert result.tool_calls_made == config.MAX_TOOL_CALLS_PER_TASK
     assert result.failed is False
 
 def test_failed_task_returns_zero_answer():
