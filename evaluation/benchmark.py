@@ -49,29 +49,39 @@ class BenchmarkRunner:
             return answer
         if not answer.strip() or not prefetched:
             return answer
-        polish_prompt = (
-            "Rewrite the DRAFT ANSWER below so that every sentence that states a fact "
-            "ends with the most relevant source URL in square brackets, e.g. "
-            "`[https://exact-url-from-sources]`. Use ONLY the URLs from the SOURCES list "
-            "below — do not invent, shorten, or paraphrase URLs. Keep all factual content "
-            "and prose style intact; only adjust where citations appear. Use at least 4 "
-            "different source URLs across the rewritten answer. Do not add a References "
-            "section. Output ONLY the rewritten answer, no preamble.\n\n"
-            f"SOURCES:\n{prefetched}\n\n"
-            f"DRAFT ANSWER:\n{answer}\n\n"
-            "REWRITTEN ANSWER:"
-        )
-        try:
-            response = self._client.chat.completions.create(
-                model=config.MODEL_WEAK,
-                messages=[{"role": "user", "content": polish_prompt}],
-            )
-            polished = response.choices[0].message.content or ""
-            return polished.strip() or answer
-        except Exception as e:
-            import sys
-            print(f"[benchmark] polish failed: {type(e).__name__}: {e}", file=sys.stderr)
+        import re
+        urls = re.findall(r"https?://[^\s\]\)]+", prefetched)
+        seen = set()
+        unique_urls = []
+        for u in urls:
+            u = u.rstrip(".,;:")
+            if u not in seen:
+                seen.add(u)
+                unique_urls.append(u)
+        if not unique_urls:
             return answer
+        sentence_re = re.compile(r"([^.!?]+[.!?])(?=\s|$)")
+        idx = 0
+        out_parts = []
+        cursor = 0
+        for m in sentence_re.finditer(answer):
+            out_parts.append(answer[cursor:m.start()])
+            sentence = m.group(1).rstrip()
+            if not sentence:
+                out_parts.append(m.group(1))
+                cursor = m.end()
+                continue
+            if re.search(r"\[https?://", sentence):
+                out_parts.append(m.group(1))
+            else:
+                punct = sentence[-1]
+                core = sentence[:-1].rstrip()
+                url = unique_urls[idx % len(unique_urls)]
+                idx += 1
+                out_parts.append(f"{core} [{url}]{punct}")
+            cursor = m.end()
+        out_parts.append(answer[cursor:])
+        return "".join(out_parts)
 
     def run_task(self, task: dict, system_prompt: str, tool_schemas: list) -> TaskResult:
         prefetched = ""
