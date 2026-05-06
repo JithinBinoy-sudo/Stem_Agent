@@ -7,6 +7,42 @@ from evaluation import EvaluationEngine
 from safeguards.versioning import VersionedState, VersionManager
 import config
 
+
+_DIAGNOSTIC_PATCHES = {
+    "citation": (
+        "\n\nDIAGNOSTIC PATCH (citation was lowest last iteration): EVERY single sentence "
+        "that states a fact MUST end with `[https://exact-source-url]` immediately before "
+        "the period. Do NOT add a 'References' section. Prose attribution like 'according "
+        "to Wikipedia' does not count — only inline `[https://...]` brackets count."
+    ),
+    "coverage": (
+        "\n\nDIAGNOSTIC PATCH (coverage was lowest last iteration): Cite at least 5 "
+        "DIFFERENT domain URLs across your answer. Do not cite the same URL more than "
+        "twice. Spread citations across multiple sentences using different sources for "
+        "different facts."
+    ),
+    "synthesis": (
+        "\n\nDIAGNOSTIC PATCH (synthesis was lowest last iteration): Write coherent "
+        "multi-sentence prose that explicitly connects facts (use transitions like "
+        "'because', 'as a result', 'furthermore'). Do not produce a list of disconnected "
+        "bullet points. Show why facts matter together, not just that they are true."
+    ),
+    "accuracy": (
+        "\n\nDIAGNOSTIC PATCH (accuracy was lowest last iteration): State only facts "
+        "that appear verbatim in the provided sources. If a fact is not in the sources, "
+        "do not include it. Quote source phrasings closely rather than paraphrasing."
+    ),
+}
+
+
+def _diagnose_patch(prev_average: dict) -> str:
+    if not prev_average:
+        return ""
+    criteria = {k: prev_average.get(k, 10.0) for k in ("accuracy", "coverage", "synthesis", "citation")}
+    weakest = min(criteria, key=criteria.get)
+    return _DIAGNOSTIC_PATCHES.get(weakest, "")
+
+
 class StemAgent:
     def __init__(self, results_dir: str = config.RESULTS_DIR):
         self._results_dir = results_dir
@@ -23,6 +59,7 @@ class StemAgent:
         profile = discovery.run(domain, force=force_rediscover)
 
         scores_history = []
+        last_average = None
         current_source_files = {}
         iteration = 0
 
@@ -30,6 +67,17 @@ class StemAgent:
             print(f"\n[Iteration {iteration}] Specializing...")
             spec_result = specialization.specialize(profile, current_source_files)
             is_final_attempt = (iteration == config.MAX_ITERATIONS - 1)
+
+            patched_prompt = spec_result["system_prompt"]
+            if getattr(config, "DIAGNOSE_AND_REFINE", True) and last_average is not None:
+                patch = _diagnose_patch(last_average)
+                if patch:
+                    patched_prompt = patched_prompt + patch
+                    weakest = min(
+                        ("accuracy", "coverage", "synthesis", "citation"),
+                        key=lambda k: last_average.get(k, 10.0),
+                    )
+                    print(f"[Iteration {iteration}] Diagnostic patch applied (weakest: {weakest}, score {last_average.get(weakest):.1f})")
 
             print(f"[Iteration {iteration}] Evaluating...")
             eval_schemas = spec_result["tool_schemas"]
@@ -40,7 +88,7 @@ class StemAgent:
                 ]
             scores = evaluation.evaluate(
                 tasks,
-                spec_result["system_prompt"],
+                patched_prompt,
                 eval_schemas,
                 is_final=is_final_attempt,
             )
@@ -49,7 +97,7 @@ class StemAgent:
 
             state = VersionedState(
                 version=iteration,
-                system_prompt=spec_result["system_prompt"],
+                system_prompt=patched_prompt,
                 active_tools=spec_result["active_tools"],
                 tool_schemas=spec_result["tool_schemas"],
                 tool_source_files=spec_result["tool_source_files"],
@@ -66,6 +114,7 @@ class StemAgent:
                 break
 
             scores_history.append(composite)
+            last_average = scores["average"]
             current_source_files = spec_result["tool_source_files"]
 
             # Check stopping criteria
