@@ -16,11 +16,13 @@ Parameters: {parameters}
 Returns: {returns}
 
 Requirements:
+- Function name must be EXACTLY `{name}` — lowercase, no capitalization changes
 - Function signature must match the parameter names exactly
 - Return a dict with the fields specified in Returns
 - Use only stdlib + requests + beautifulsoup4 — no other third-party imports
 - Keep it concise (under 30 lines)
 - No imports of os, subprocess, eval, exec
+- Do not call input(), print(), or any interactive I/O
 
 Return ONLY the Python function code, no markdown, no explanation.
 """
@@ -87,5 +89,22 @@ class ToolGenerator:
         spec = importlib.util.spec_from_file_location(name, path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        func = getattr(module, name)
+        func = getattr(module, name, None)
+        if func is None or not callable(func):
+            for attr in dir(module):
+                if attr.startswith("_"):
+                    continue
+                if attr.lower() == name.lower():
+                    func = getattr(module, attr)
+                    break
+            else:
+                for attr in dir(module):
+                    if attr.startswith("_"):
+                        continue
+                    candidate = getattr(module, attr)
+                    if callable(candidate) and getattr(candidate, "__module__", None) == module.__name__:
+                        func = candidate
+                        break
+        if func is None or not callable(func):
+            raise AttributeError(f"no callable found in generated module for tool '{name}'")
         register_tool(name, func)
