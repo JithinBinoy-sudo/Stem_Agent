@@ -33,22 +33,37 @@ def _count_unique_domains(text: str) -> int:
 
 JUDGE_PROMPT = """You are an expert evaluator. Score the following research outputs.
 
-For each output, return a JSON object with:
-- "accuracy": 0-10 (how factually correct compared to the reference answer)
-- "synthesis": 0-10 (coherence, depth, and quality of the synthesis)
+For each output, return one JSON object with two integer fields, each 0-10:
+- "accuracy": how factually correct the output is compared to the reference answer
+- "synthesis": coherence, depth, and quality of the synthesis
 
 Reference answers and outputs:
 {pairs}
 
-Return a JSON array with one object per output, in the same order. Example:
-[{{"accuracy": 7, "synthesis": 8}}, {{"accuracy": 4, "synthesis": 6}}]
+Return ONLY a JSON object with a single key "scores" whose value is an array of {n} score objects in the same order as the tasks above. Example for 2 tasks:
+{{"scores": [{{"accuracy": 7, "synthesis": 8}}, {{"accuracy": 4, "synthesis": 6}}]}}
 """
+
+
+def _extract_scores_list(raw, expected_len: int) -> list:
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, dict):
+        if "scores" in raw and isinstance(raw["scores"], list):
+            return raw["scores"]
+        for v in raw.values():
+            if isinstance(v, list) and v and isinstance(v[0], dict):
+                return v
+        if all(isinstance(v, dict) for v in raw.values()) and len(raw) == expected_len:
+            return list(raw.values())
+    return []
 
 class Judge:
     def __init__(self):
         self._client = OpenAI(api_key=config.OPENAI_API_KEY)
 
     def score_all(self, results, tasks, is_final: bool = False) -> dict:
+        import sys
         model = config.MODEL_STRONG if is_final else config.MODEL_WEAK
         pairs = "\n\n".join(
             f"Task {r.task_id}:\nReference: {t['reference_answer']}\nOutput: {r.answer}"
@@ -57,12 +72,16 @@ class Judge:
         try:
             response = self._client.chat.completions.create(
                 model=model,
-                messages=[{"role": "user", "content": JUDGE_PROMPT.format(pairs=pairs)}],
+                messages=[{"role": "user", "content": JUDGE_PROMPT.format(pairs=pairs, n=len(results))}],
                 response_format={"type": "json_object"},
             )
             raw = json.loads(response.choices[0].message.content)
-            llm_scores = raw if isinstance(raw, list) else raw.get("scores", [{}] * len(results))
-        except Exception:
+            llm_scores = _extract_scores_list(raw, expected_len=len(results))
+            if len(llm_scores) != len(results):
+                print(f"[judge] expected {len(results)} score objects, got {len(llm_scores)}; raw shape={type(raw).__name__} keys={list(raw.keys()) if isinstance(raw, dict) else 'N/A'}", file=sys.stderr)
+                llm_scores = (llm_scores + [{}] * len(results))[:len(results)]
+        except Exception as e:
+            print(f"[judge] scoring failed: {type(e).__name__}: {e}", file=sys.stderr)
             llm_scores = [{"accuracy": 0, "synthesis": 0}] * len(results)
 
         all_scores = []
