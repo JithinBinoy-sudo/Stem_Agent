@@ -58,7 +58,10 @@ class BenchmarkRunner:
             )
             return TaskResult(task_id=task["id"], query=task["query"],
                                answer=last_content, tool_calls_made=tool_calls_made, failed=False)
-        except Exception:
+        except Exception as e:
+            import sys, traceback
+            print(f"[benchmark] task {task['id']} failed: {type(e).__name__}: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
             return TaskResult(task_id=task["id"], query=task["query"],
                                answer="", tool_calls_made=tool_calls_made, failed=True)
 

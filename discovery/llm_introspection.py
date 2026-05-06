@@ -1,8 +1,14 @@
 import json
+import re
 from dataclasses import dataclass
 from typing import List, Dict, Any
 from openai import OpenAI
 import config
+
+
+def sanitize_tool_name(name: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9_-]+", "_", name.strip()).strip("_")
+    return cleaned.lower() or "unnamed_tool"
 
 @dataclass
 class ToolSpec:
@@ -60,19 +66,20 @@ class LLMIntrospector:
             response_format={"type": "json_object"},
         )
         data = json.loads(response.choices[0].message.content)
-        tool_specs = {
-            name: ToolSpec(
-                name=spec["name"],
+        tool_specs = {}
+        for raw_name, spec in data.get("tool_specs", {}).items():
+            canonical = sanitize_tool_name(spec.get("name", raw_name))
+            tool_specs[canonical] = ToolSpec(
+                name=canonical,
                 description=spec["description"],
                 parameters=spec.get("parameters", {}),
                 returns=spec.get("returns", {})
             )
-            for name, spec in data.get("tool_specs", {}).items()
-        }
+        required_tools = [sanitize_tool_name(t) for t in data["required_tools"]]
         return DomainProfile(
             domain=data["domain"],
             workflow=data["workflow"],
-            required_tools=data["required_tools"],
+            required_tools=required_tools,
             tool_specs=tool_specs,
             quality_criteria=data["quality_criteria"],
         )

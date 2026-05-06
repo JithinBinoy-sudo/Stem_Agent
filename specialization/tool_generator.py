@@ -35,6 +35,7 @@ class ToolGenerator:
         os.makedirs(config.GENERATED_TOOLS_DIR, exist_ok=True)
 
     def spec_to_schema(self, spec: ToolSpec) -> dict:
+        from discovery.llm_introspection import sanitize_tool_name
         properties = {
             name: {"type": meta["type"], "description": meta.get("description", "")}
             for name, meta in spec.parameters.items()
@@ -42,7 +43,7 @@ class ToolGenerator:
         return {
             "type": "function",
             "function": {
-                "name": spec.name,
+                "name": sanitize_tool_name(spec.name),
                 "description": spec.description,
                 "parameters": {
                     "type": "object",
