@@ -23,10 +23,12 @@ class BenchmarkRunner:
         ]
         tool_calls_made = 0
         try:
-            for _ in range(config.MAX_TOOL_CALLS_PER_TASK):
+            for step in range(config.MAX_TOOL_CALLS_PER_TASK):
                 kwargs = {"model": config.MODEL_STRONG, "messages": messages}
                 if tool_schemas:
                     kwargs["tools"] = tool_schemas
+                    if step == 0:
+                        kwargs["tool_choice"] = "required"
                 response = self._client.chat.completions.create(**kwargs)
                 choice = response.choices[0]
 
