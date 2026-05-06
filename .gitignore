@@ -1,0 +1,23 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Generated artifacts
+cache/*
+!cache/.gitkeep
+results/versions/*
+!results/versions/.gitkeep
+results/final_agent/*
+!results/final_agent/.gitkeep
+results/scores.json
+tools/generated/*
+!tools/generated/.gitkeep
+
+# IDE
+.vscode/
+.idea/
