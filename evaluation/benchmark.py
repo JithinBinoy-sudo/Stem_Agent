@@ -16,10 +16,35 @@ class BenchmarkRunner:
     def __init__(self):
         self._client = OpenAI(api_key=config.OPENAI_API_KEY)
 
+    def _prefetch_sources(self, query: str) -> str:
+        if not getattr(config, "PREFETCH_SOURCES", True):
+            return ""
+        try:
+            results = get_tool("web_search")(query=query).get("results", [])
+        except Exception as e:
+            import sys
+            print(f"[benchmark] prefetch failed: {type(e).__name__}: {e}", file=sys.stderr)
+            return ""
+        if not results:
+            return ""
+        lines = ["Pre-fetched search results to ground your answer (cite these URLs verbatim in [brackets] after each fact you use):"]
+        for r in results[:6]:
+            url = r.get("url", "")
+            title = r.get("title", "")
+            content = (r.get("content") or "")[:400]
+            lines.append(f"- [{url}] {title}: {content}")
+        return "\n".join(lines)
+
     def run_task(self, task: dict, system_prompt: str, tool_schemas: list) -> TaskResult:
+        prefetched = ""
+        if any(s.get("function", {}).get("name") == "web_search" for s in tool_schemas):
+            prefetched = self._prefetch_sources(task["query"])
+        user_content = task["query"]
+        if prefetched:
+            user_content = f"{task['query']}\n\n{prefetched}"
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": task["query"]},
+            {"role": "user", "content": user_content},
         ]
         tool_calls_made = 0
         try:
