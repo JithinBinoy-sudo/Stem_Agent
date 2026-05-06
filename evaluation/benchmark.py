@@ -27,21 +27,12 @@ class BenchmarkRunner:
             return ""
         if not results:
             return ""
-        lines = ["You have been provided the following sources. You MUST use them to answer."]
-        for i, r in enumerate(results[:6], 1):
+        lines = ["Pre-fetched search results to ground your answer (cite these URLs verbatim in [brackets] after each fact you use):"]
+        for r in results[:6]:
             url = r.get("url", "")
             title = r.get("title", "")
             content = (r.get("content") or "")[:400]
-            lines.append(f"SOURCE {i}: {url}\nTitle: {title}\nExcerpt: {content}")
-        lines.append(
-            "\nOUTPUT FORMAT — NON-NEGOTIABLE:\n"
-            "- Answer as 5 to 10 bullet points. Each bullet states one fact.\n"
-            "- Every bullet MUST end with the EXACT source URL in square brackets, e.g. `[https://en.wikipedia.org/wiki/Tim_Berners-Lee]`.\n"
-            "- Use the URLs above verbatim — do not invent, shorten, or paraphrase them.\n"
-            "- Cite at least 4 DIFFERENT source URLs across your bullets (use different sources for different facts).\n"
-            "- Do NOT write paragraphs. Do NOT add a 'References' or 'Sources' section. Cite inline only.\n"
-            "- Do NOT use prose attributions like 'according to Wikipedia' — only `[https://...]` brackets count."
-        )
+            lines.append(f"- [{url}] {title}: {content}")
         return "\n".join(lines)
 
     def run_task(self, task: dict, system_prompt: str, tool_schemas: list) -> TaskResult:
