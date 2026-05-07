@@ -17,14 +17,20 @@ class BenchmarkRunner:
         self._client = OpenAI(api_key=config.OPENAI_API_KEY)
 
     def _prefetch_sources(self, query: str) -> str:
+        import sys
         if not getattr(config, "PREFETCH_SOURCES", True):
+            print(f"[benchmark] prefetch disabled by config", file=sys.stderr)
             return ""
         try:
-            results = get_tool("web_search")(query=query).get("results", [])
+            raw = get_tool("web_search")(query=query)
+            results = raw.get("results", [])
+            err = raw.get("error")
+            if err:
+                print(f"[benchmark] prefetch web_search returned error: {err}", file=sys.stderr)
         except Exception as e:
-            import sys
-            print(f"[benchmark] prefetch failed: {type(e).__name__}: {e}", file=sys.stderr)
+            print(f"[benchmark] prefetch threw: {type(e).__name__}: {e}", file=sys.stderr)
             return ""
+        print(f"[benchmark] prefetch query={query[:60]!r} → {len(results)} results", file=sys.stderr)
         if not results:
             return ""
         lines = ["You have been provided the following sources. Use them to answer."]
@@ -45,9 +51,15 @@ class BenchmarkRunner:
         return "\n".join(lines)
 
     def _polish_citations(self, answer: str, prefetched: str) -> str:
+        import sys
         if not getattr(config, "POLISH_CITATIONS", True):
+            print(f"[benchmark] polish disabled by config", file=sys.stderr)
             return answer
-        if not answer.strip() or not prefetched:
+        if not answer.strip():
+            print(f"[benchmark] polish skipped: empty answer", file=sys.stderr)
+            return answer
+        if not prefetched:
+            print(f"[benchmark] polish skipped: empty prefetched (no sources)", file=sys.stderr)
             return answer
         import re
         raw_urls = re.findall(r"https?://[^\s\]\)]+", prefetched)
@@ -59,6 +71,7 @@ class BenchmarkRunner:
                 seen.add(u)
                 urls.append(u)
         if not urls:
+            print(f"[benchmark] polish skipped: no URLs parsed from prefetched", file=sys.stderr)
             return answer
 
         units = [u for u in re.split(r"(?<=[.!?])\s+", answer.strip()) if u.strip()]
@@ -96,6 +109,7 @@ class BenchmarkRunner:
             footer = " ".join(f"[{u}]" for u in sources_to_append[: max(0, 5 - len(existing_domains))])
             joined = f"{joined}\n\nAdditional sources consulted: {footer}."
 
+        print(f"[benchmark] polish: answer_len={len(answer)} urls_avail={len(urls)} units={len(units)} cited_added={cited_count} domains_in_output={len(existing_domains)}", file=sys.stderr)
         return joined
 
     def run_task(self, task: dict, system_prompt: str, tool_schemas: list) -> TaskResult:
