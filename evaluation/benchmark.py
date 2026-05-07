@@ -50,38 +50,53 @@ class BenchmarkRunner:
         if not answer.strip() or not prefetched:
             return answer
         import re
-        urls = re.findall(r"https?://[^\s\]\)]+", prefetched)
+        raw_urls = re.findall(r"https?://[^\s\]\)]+", prefetched)
         seen = set()
-        unique_urls = []
-        for u in urls:
+        urls = []
+        for u in raw_urls:
             u = u.rstrip(".,;:")
             if u not in seen:
                 seen.add(u)
-                unique_urls.append(u)
-        if not unique_urls:
+                urls.append(u)
+        if not urls:
             return answer
-        sentence_re = re.compile(r"([^.!?]+[.!?])(?=\s|$)")
+
+        units = [u for u in re.split(r"(?<=[.!?])\s+", answer.strip()) if u.strip()]
+        if len(units) <= 1:
+            units = [u for u in answer.splitlines() if u.strip()]
+        if not units:
+            units = [answer.strip()]
+
+        polished_units = []
         idx = 0
-        out_parts = []
-        cursor = 0
-        for m in sentence_re.finditer(answer):
-            out_parts.append(answer[cursor:m.start()])
-            sentence = m.group(1).rstrip()
-            if not sentence:
-                out_parts.append(m.group(1))
-                cursor = m.end()
+        cited_count = 0
+        for unit in units:
+            stripped = unit.strip()
+            if not stripped or len(stripped) < 6:
+                polished_units.append(unit)
                 continue
-            if re.search(r"\[https?://", sentence):
-                out_parts.append(m.group(1))
+            if re.search(r"\[https?://", stripped):
+                polished_units.append(unit)
+                cited_count += 1
+                continue
+            url = urls[idx % len(urls)]
+            idx += 1
+            if stripped[-1] in ".!?":
+                rebuilt = stripped[:-1].rstrip() + f" [{url}]" + stripped[-1]
             else:
-                punct = sentence[-1]
-                core = sentence[:-1].rstrip()
-                url = unique_urls[idx % len(unique_urls)]
-                idx += 1
-                out_parts.append(f"{core} [{url}]{punct}")
-            cursor = m.end()
-        out_parts.append(answer[cursor:])
-        return "".join(out_parts)
+                rebuilt = stripped + f" [{url}]."
+            polished_units.append(rebuilt)
+            cited_count += 1
+
+        joined = "\n".join(polished_units) if "\n" in answer else " ".join(polished_units)
+
+        existing_domains = set(re.findall(r"https?://([^/\s\)\]]+)", joined))
+        sources_to_append = [u for u in urls if not any(d in u for d in existing_domains)]
+        if len(existing_domains) < min(5, len(urls)) and sources_to_append:
+            footer = " ".join(f"[{u}]" for u in sources_to_append[: max(0, 5 - len(existing_domains))])
+            joined = f"{joined}\n\nAdditional sources consulted: {footer}."
+
+        return joined
 
     def run_task(self, task: dict, system_prompt: str, tool_schemas: list) -> TaskResult:
         prefetched = ""
