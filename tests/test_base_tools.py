@@ -2,7 +2,8 @@ import pytest
 from unittest.mock import patch, MagicMock
 from tools.base_tools import web_search, url_reader, get_openai_schema
 
-def test_web_search_returns_results():
+def test_web_search_returns_results(monkeypatch):
+    monkeypatch.setattr("config.SEARCH_BACKEND", "tavily")
     mock_response = MagicMock()
     mock_response.results = [
         MagicMock(title="Result 1", url="https://example.com", content="Some content")
@@ -14,13 +15,26 @@ def test_web_search_returns_results():
     assert len(result["results"]) == 1
     assert result["results"][0]["url"] == "https://example.com"
 
-def test_web_search_handles_empty_results():
+def test_web_search_handles_empty_results(monkeypatch):
+    monkeypatch.setattr("config.SEARCH_BACKEND", "tavily")
     mock_response = MagicMock()
     mock_response.results = []
     with patch("tools.base_tools.TavilyClient") as MockClient:
         MockClient.return_value.search.return_value = mock_response
         result = web_search(query="obscure query")
     assert result == {"results": []}
+
+def test_web_search_duckduckgo_backend(monkeypatch):
+    monkeypatch.setattr("config.SEARCH_BACKEND", "duckduckgo")
+    fake_hits = [
+        {"title": "DDG Result", "href": "https://example.com/ddg", "body": "DDG snippet content"},
+    ]
+    with patch("tools.base_tools.DDGS") as MockDDGS:
+        MockDDGS.return_value.__enter__.return_value.text.return_value = iter(fake_hits)
+        result = web_search(query="test ddg")
+    assert len(result["results"]) == 1
+    assert result["results"][0]["url"] == "https://example.com/ddg"
+    assert result["results"][0]["content"] == "DDG snippet content"
 
 def test_url_reader_extracts_text():
     mock_html = "<html><body><p>Hello world</p></body></html>"

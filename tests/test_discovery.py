@@ -22,7 +22,7 @@ def tmp_cache(tmp_path):
 def patch_api_clients():
     """Patch external API clients so constructors don't require real credentials."""
     with patch("discovery.llm_introspection.OpenAI"):
-        with patch("discovery.web_research.TavilyClient"):
+        with patch("discovery.web_research.web_search", return_value={"results": []}):
             yield
 
 def test_run_returns_domain_profile(tmp_cache):

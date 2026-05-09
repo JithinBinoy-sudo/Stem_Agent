@@ -1,18 +1,42 @@
 import requests
 from bs4 import BeautifulSoup
 from tavily import TavilyClient
+from duckduckgo_search import DDGS
 import config
 
+
+def _search_tavily(query: str) -> dict:
+    client = TavilyClient(api_key=config.TAVILY_API_KEY)
+    response = client.search(query=query, max_results=5)
+    return {
+        "results": [
+            {"title": r.title, "url": r.url, "content": r.content}
+            for r in response.results
+        ]
+    }
+
+
+def _search_duckduckgo(query: str) -> dict:
+    with DDGS() as ddgs:
+        hits = list(ddgs.text(query, max_results=5))
+    return {
+        "results": [
+            {
+                "title": h.get("title", ""),
+                "url": h.get("href") or h.get("url", ""),
+                "content": h.get("body", ""),
+            }
+            for h in hits
+        ]
+    }
+
+
 def web_search(query: str) -> dict:
+    backend = getattr(config, "SEARCH_BACKEND", "duckduckgo").lower()
     try:
-        client = TavilyClient(api_key=config.TAVILY_API_KEY)
-        response = client.search(query=query, max_results=5)
-        return {
-            "results": [
-                {"title": r.title, "url": r.url, "content": r.content}
-                for r in response.results
-            ]
-        }
+        if backend == "tavily":
+            return _search_tavily(query)
+        return _search_duckduckgo(query)
     except Exception as e:
         return {"results": [], "error": str(e)}
 
