@@ -26,6 +26,7 @@ visualization.png
 # Local notes
 Initial Instructions.txt
 
-# IDE
+# IDE / per-machine
 .vscode/
 .idea/
+.claude/
