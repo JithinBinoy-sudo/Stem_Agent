@@ -104,8 +104,10 @@ class LLMIntrospector:
 
 
 DEFAULT_RUBRIC = [
-    {"name": "accuracy", "weight": 0.35, "method": "llm"},
-    {"name": "synthesis", "weight": 0.25, "method": "llm"},
+    {"name": "accuracy", "weight": 0.35, "method": "llm",
+     "description": "How factually correct the output is compared to the reference answer (0=wrong, 10=fully correct)"},
+    {"name": "synthesis", "weight": 0.25, "method": "llm",
+     "description": "Coherence, depth, and quality of the synthesis (0=incoherent, 10=excellent integration)"},
     {"name": "coverage", "weight": 0.25, "method": "deterministic", "scorer": "unique_domains"},
     {"name": "citation", "weight": 0.15, "method": "deterministic", "scorer": "sentence_citations"},
 ]

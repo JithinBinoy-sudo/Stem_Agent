@@ -123,3 +123,53 @@ def test_composite_score_perfect():
 def test_composite_score_zero():
     scores = CriterionScores(accuracy=0.0, coverage=0.0, synthesis=0.0, citation=0.0)
     assert composite_score(scores) == 0.0
+
+
+# Phase 3: dynamic rubric tests
+
+def test_rubric_drives_scoring_with_custom_criteria():
+    """A custom rubric with only deterministic criteria should bypass the LLM judge."""
+    from evaluation.judge import Judge
+    judge = Judge.__new__(Judge)
+    judge._client = MagicMock()
+    rubric = [
+        {"name": "domains", "weight": 0.6, "method": "deterministic", "scorer": "unique_domains"},
+        {"name": "cited", "weight": 0.4, "method": "deterministic", "scorer": "sentence_citations"},
+    ]
+    results = [
+        TaskResult(task_id=1, query="q", answer="A [https://a.com]. B [https://b.com]. C [https://c.com].",
+                   tool_calls_made=0, failed=False),
+    ]
+    tasks = [{"id": 1, "reference_answer": "ref"}]
+    out = judge.score_all(results, tasks, rubric=rubric)
+    judge._client.chat.completions.create.assert_not_called()
+    assert "domains" in out["average"]
+    assert "cited" in out["average"]
+    assert out["average"]["cited"] == 10.0
+    assert out["average"]["domains"] == pytest.approx(3 / 5 * 10)
+    expected_composite = (out["average"]["domains"] * 0.6 + out["average"]["cited"] * 0.4) * 10.0
+    assert out["average"]["composite"] == pytest.approx(expected_composite)
+
+
+def test_rubric_with_only_llm_criteria_skips_deterministic():
+    """LLM-only rubric: no deterministic scorers run."""
+    from evaluation.judge import Judge
+    judge = Judge.__new__(Judge)
+    judge._client = MagicMock()
+    fake_response = MagicMock()
+    fake_response.choices = [MagicMock()]
+    fake_response.choices[0].message.content = json.dumps({"scores": [{"correctness": 8, "style": 7}]})
+    judge._client.chat.completions.create.return_value = fake_response
+    rubric = [
+        {"name": "correctness", "weight": 0.7, "method": "llm", "description": "is the answer correct"},
+        {"name": "style", "weight": 0.3, "method": "llm", "description": "is it well-styled"},
+    ]
+    results = [
+        TaskResult(task_id=1, query="q", answer="some answer", tool_calls_made=0, failed=False),
+    ]
+    tasks = [{"id": 1, "reference_answer": "ref"}]
+    out = judge.score_all(results, tasks, rubric=rubric)
+    assert out["average"]["correctness"] == 8.0
+    assert out["average"]["style"] == 7.0
+    expected = (8.0 * 0.7 + 7.0 * 0.3) * 10.0
+    assert out["average"]["composite"] == pytest.approx(expected)
