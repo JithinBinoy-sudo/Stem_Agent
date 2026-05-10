@@ -31,13 +31,50 @@ def _search_duckduckgo(query: str) -> dict:
     }
 
 
+def _search_wikipedia(query: str) -> dict:
+    api = "https://en.wikipedia.org/w/api.php"
+    params = {
+        "action": "query",
+        "list": "search",
+        "srsearch": query,
+        "format": "json",
+        "srlimit": 5,
+    }
+    headers = {"User-Agent": "stem-agent/1.0 (educational)"}
+    resp = requests.get(api, params=params, headers=headers, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    results = []
+    for hit in data.get("query", {}).get("search", []):
+        title = hit.get("title", "")
+        snippet = BeautifulSoup(hit.get("snippet", ""), "html.parser").get_text()
+        slug = title.replace(" ", "_")
+        results.append({
+            "title": title,
+            "url": f"https://en.wikipedia.org/wiki/{slug}",
+            "content": snippet,
+        })
+    return {"results": results}
+
+
 def web_search(query: str) -> dict:
     backend = getattr(config, "SEARCH_BACKEND", "duckduckgo").lower()
     try:
         if backend == "tavily":
             return _search_tavily(query)
-        return _search_duckduckgo(query)
+        if backend == "wikipedia":
+            return _search_wikipedia(query)
+        primary = _search_duckduckgo(query)
+        if primary.get("results"):
+            return primary
+        return _search_wikipedia(query)
     except Exception as e:
+        try:
+            fallback = _search_wikipedia(query)
+            if fallback.get("results"):
+                return fallback
+        except Exception:
+            pass
         return {"results": [], "error": str(e)}
 
 def url_reader(url: str) -> dict:
