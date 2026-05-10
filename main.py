@@ -33,11 +33,17 @@ def main():
     if os.path.exists(scores_path):
         with open(scores_path) as f:
             history = json.load(f)
-        print("\nIteration scores:")
-        print(f"{'Iter':>4} {'Composite':>10} {'Accuracy':>9} {'Coverage':>9} {'Synthesis':>10} {'Citation':>9}")
-        for h in history:
-            print(f"{h['iteration']:>4} {h['composite']:>10.1f} {h['accuracy']:>9.1f} "
-                  f"{h['coverage']:>9.1f} {h['synthesis']:>10.1f} {h['citation']:>9.1f}")
+        if history:
+            criteria = [k for k in history[-1].keys() if k not in ("iteration", "composite")]
+            col_w = max(10, max((len(c) for c in criteria), default=10) + 1)
+            print("\nIteration scores:")
+            header = f"{'Iter':>4} {'Composite':>10} " + " ".join(f"{c.capitalize():>{col_w}}" for c in criteria)
+            print(header)
+            for h in history:
+                row = f"{h['iteration']:>4} {h['composite']:>10.1f} " + " ".join(
+                    f"{h.get(c, 0):>{col_w}.1f}" for c in criteria
+                )
+                print(row)
 
 if __name__ == "__main__":
     main()
