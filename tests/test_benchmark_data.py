@@ -2,7 +2,7 @@ import json
 import pytest
 
 def load_tasks():
-    with open("benchmarks/deep_research_tasks.json") as f:
+    with open("benchmarks/deep_research.json") as f:
         return json.load(f)
 
 def test_benchmark_has_five_tasks():

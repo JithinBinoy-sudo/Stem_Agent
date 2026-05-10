@@ -55,7 +55,7 @@ class StemAgent:
         evaluation = EvaluationEngine()
         version_mgr = VersionManager(versions_dir=os.path.join(self._results_dir, "versions"))
 
-        tasks = self._load_tasks()
+        tasks = self._load_tasks(domain)
         profile = discovery.run(domain, force=force_rediscover)
 
         scores_history = []
@@ -134,8 +134,17 @@ class StemAgent:
         self._export_final_agent(best)
         return best
 
-    def _load_tasks(self) -> list:
-        with open("benchmarks/deep_research_tasks.json") as f:
+    def _load_tasks(self, domain: str) -> list:
+        from discovery.llm_introspection import sanitize_tool_name
+        slug = sanitize_tool_name(domain)
+        path = os.path.join("benchmarks", f"{slug}.json")
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"No benchmark file for domain '{domain}'. "
+                f"Expected: {path}. "
+                f"Create the file with a 'tasks' list (see benchmarks/deep_research.json for the schema)."
+            )
+        with open(path) as f:
             return json.load(f)["tasks"]
 
     def _append_score(self, iteration: int, scores: dict):

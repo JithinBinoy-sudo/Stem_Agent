@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py -m pytest --tb=short)",
+      "Bash(py -m pytest tests/test_stem_agent.py -v)"
+    ]
+  }
+}
