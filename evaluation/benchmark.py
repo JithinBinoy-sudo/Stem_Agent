@@ -121,9 +121,12 @@ class BenchmarkRunner:
         print(f"[benchmark] polish: answer_len={len(answer)} urls_avail={len(urls)} fragments_cited={cited_count} domains_in_output={len(existing_domains)}", file=sys.stderr)
         return out
 
-    def run_task(self, task: dict, system_prompt: str, tool_schemas: list) -> TaskResult:
+    def run_task(self, task: dict, system_prompt: str, tool_schemas: list, pipeline: dict | None = None) -> TaskResult:
+        pipeline = pipeline or {}
         prefetched = ""
-        if any(s.get("function", {}).get("name") == "web_search" for s in tool_schemas):
+        if pipeline.get("prefetch_sources", True) and any(
+            s.get("function", {}).get("name") == "web_search" for s in tool_schemas
+        ):
             prefetched = self._prefetch_sources(task["query"])
         user_content = task["query"]
         if prefetched:
@@ -143,7 +146,7 @@ class BenchmarkRunner:
 
                 if choice.finish_reason == "stop" or not choice.message.tool_calls:
                     raw_answer = choice.message.content or ""
-                    polished = self._polish_citations(raw_answer, prefetched)
+                    polished = self._polish_citations(raw_answer, prefetched) if pipeline.get("polish_citations", True) else raw_answer
                     return TaskResult(
                         task_id=task["id"],
                         query=task["query"],
@@ -169,7 +172,7 @@ class BenchmarkRunner:
                 (m.get("content", "") for m in reversed(messages) if m["role"] == "assistant" and m.get("content")),
                 ""
             )
-            polished = self._polish_citations(last_content, prefetched)
+            polished = self._polish_citations(last_content, prefetched) if pipeline.get("polish_citations", True) else last_content
             return TaskResult(task_id=task["id"], query=task["query"],
                                answer=polished, tool_calls_made=tool_calls_made, failed=False)
         except Exception as e:
@@ -179,5 +182,5 @@ class BenchmarkRunner:
             return TaskResult(task_id=task["id"], query=task["query"],
                                answer="", tool_calls_made=tool_calls_made, failed=True)
 
-    def run_all(self, tasks: list, system_prompt: str, tool_schemas: list) -> list:
-        return [self.run_task(task, system_prompt, tool_schemas) for task in tasks]
+    def run_all(self, tasks: list, system_prompt: str, tool_schemas: list, pipeline: dict | None = None) -> list:
+        return [self.run_task(task, system_prompt, tool_schemas, pipeline) for task in tasks]

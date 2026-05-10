@@ -1,7 +1,7 @@
 import json
 import os
 from dataclasses import asdict
-from discovery.llm_introspection import LLMIntrospector, DomainProfile, ToolSpec
+from discovery.llm_introspection import LLMIntrospector, DomainProfile, ToolSpec, DEFAULT_RUBRIC
 from discovery.web_research import WebResearcher
 
 class DiscoveryEngine:
@@ -31,6 +31,9 @@ class DiscoveryEngine:
             required_tools=data["required_tools"],
             tool_specs=tool_specs,
             quality_criteria=data["quality_criteria"],
+            requires_web_research=bool(data.get("requires_web_research", True)),
+            requires_citations=bool(data.get("requires_citations", True)),
+            rubric=data.get("rubric") or DEFAULT_RUBRIC,
         )
 
     def _save_cache(self, profile: DomainProfile):
@@ -43,6 +46,9 @@ class DiscoveryEngine:
                 name: asdict(spec) for name, spec in profile.tool_specs.items()
             },
             "quality_criteria": profile.quality_criteria,
+            "requires_web_research": profile.requires_web_research,
+            "requires_citations": profile.requires_citations,
+            "rubric": profile.rubric,
         }
         with open(path, "w") as f:
             json.dump(data, f, indent=2)

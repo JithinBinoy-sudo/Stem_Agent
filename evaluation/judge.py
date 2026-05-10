@@ -62,7 +62,7 @@ class Judge:
     def __init__(self):
         self._client = OpenAI(api_key=config.OPENAI_API_KEY)
 
-    def score_all(self, results, tasks, is_final: bool = False) -> dict:
+    def score_all(self, results, tasks, is_final: bool = False, rubric: list | None = None) -> dict:
         import sys
         model = config.MODEL_STRONG if is_final else config.MODEL_WEAK
         pairs = "\n\n".join(

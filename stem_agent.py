@@ -86,11 +86,17 @@ class StemAgent:
                     s for s in eval_schemas
                     if s["function"]["name"] in {"web_search", "url_reader"}
                 ]
+            pipeline = {
+                "prefetch_sources": profile.requires_web_research,
+                "polish_citations": profile.requires_citations,
+            }
             scores = evaluation.evaluate(
                 tasks,
                 patched_prompt,
                 eval_schemas,
                 is_final=is_final_attempt,
+                pipeline=pipeline,
+                rubric=profile.rubric,
             )
             composite = scores["average"]["composite"]
             print(f"[Iteration {iteration}] Composite score: {composite:.1f}")
