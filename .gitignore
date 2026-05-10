@@ -18,6 +18,14 @@ results/scores.json
 tools/generated/*
 !tools/generated/.gitkeep
 
+# Tool-generated artifacts during runs
+test_output.txt
+visualization.png
+*.log
+
+# Local notes
+Initial Instructions.txt
+
 # IDE
 .vscode/
 .idea/
