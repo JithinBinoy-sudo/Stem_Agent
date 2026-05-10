@@ -74,43 +74,52 @@ class BenchmarkRunner:
             print(f"[benchmark] polish skipped: no URLs parsed from prefetched", file=sys.stderr)
             return answer
 
-        units = [u for u in re.split(r"(?<=[.!?])\s+", answer.strip()) if u.strip()]
-        if len(units) <= 1:
-            units = [u for u in answer.splitlines() if u.strip()]
-        if not units:
-            units = [answer.strip()]
+        # Mask URLs already present so fragment splitter doesn't break them.
+        url_pattern = re.compile(r"\[https?://[^\]]+\]|https?://\S+")
+        placeholders = {}
+        def _mask(match):
+            key = f"\x00MASK{len(placeholders)}\x00"
+            placeholders[key] = match.group(0)
+            return key
+        masked = url_pattern.sub(_mask, answer)
 
-        polished_units = []
+        # Fragment-level pass: every judge fragment (split by .!?) gets a [URL]
+        parts = re.split(r"([.!?])", masked)
+        rebuilt = []
         idx = 0
         cited_count = 0
-        for unit in units:
-            stripped = unit.strip()
-            if not stripped or len(stripped) < 6:
-                polished_units.append(unit)
-                continue
-            if re.search(r"\[https?://", stripped):
-                polished_units.append(unit)
+
+        def _inject(fragment: str) -> str:
+            nonlocal idx, cited_count
+            stripped = fragment.strip()
+            if not stripped:
+                return fragment
+            if "\x00MASK" in fragment:
                 cited_count += 1
-                continue
+                return fragment
             url = urls[idx % len(urls)]
             idx += 1
-            if stripped[-1] in ".!?":
-                rebuilt = stripped[:-1].rstrip() + f" [{url}]" + stripped[-1]
-            else:
-                rebuilt = stripped + f" [{url}]."
-            polished_units.append(rebuilt)
             cited_count += 1
+            return fragment.rstrip() + f" [{url}]"
 
-        joined = "\n".join(polished_units) if "\n" in answer else " ".join(polished_units)
+        for i in range(0, len(parts) - 1, 2):
+            rebuilt.append(_inject(parts[i]) + parts[i + 1])
+        if len(parts) % 2 == 1:
+            rebuilt.append(_inject(parts[-1]))
 
-        existing_domains = set(re.findall(r"https?://([^/\s\)\]]+)", joined))
+        out = "".join(rebuilt)
+        for ph, original in placeholders.items():
+            out = out.replace(ph, original)
+
+        existing_domains = set(re.findall(r"https?://([^/\s\)\]]+)", out))
         sources_to_append = [u for u in urls if not any(d in u for d in existing_domains)]
         if len(existing_domains) < min(5, len(urls)) and sources_to_append:
             footer = " ".join(f"[{u}]" for u in sources_to_append[: max(0, 5 - len(existing_domains))])
-            joined = f"{joined}\n\nAdditional sources consulted: {footer}."
+            out = f"{out}\n\nAdditional sources consulted: {footer}."
+            existing_domains = set(re.findall(r"https?://([^/\s\)\]]+)", out))
 
-        print(f"[benchmark] polish: answer_len={len(answer)} urls_avail={len(urls)} units={len(units)} cited_added={cited_count} domains_in_output={len(existing_domains)}", file=sys.stderr)
-        return joined
+        print(f"[benchmark] polish: answer_len={len(answer)} urls_avail={len(urls)} fragments_cited={cited_count} domains_in_output={len(existing_domains)}", file=sys.stderr)
+        return out
 
     def run_task(self, task: dict, system_prompt: str, tool_schemas: list) -> TaskResult:
         prefetched = ""

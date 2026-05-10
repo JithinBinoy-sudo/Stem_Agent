@@ -16,7 +16,7 @@ def compute_coverage_score(unique_domain_count: int) -> float:
     return min(unique_domain_count / 5, 1.0) * 10.0
 
 def compute_citation_score(text: str) -> float:
-    sentences = [s.strip() for s in re.split(r'[.!?]', text) if s.strip()]
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
     if not sentences:
         return 0.0
     cited = sum(1 for s in sentences if re.search(r'\[.+?\]|\(https?://\S+\)|https?://\S+', s))
