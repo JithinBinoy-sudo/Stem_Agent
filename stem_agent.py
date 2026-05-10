@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime, timezone
+from openai import OpenAI
 from discovery import DiscoveryEngine
 from specialization import SpecializationEngine
 from evaluation import EvaluationEngine
@@ -8,39 +9,75 @@ from safeguards.versioning import VersionedState, VersionManager
 import config
 
 
-_DIAGNOSTIC_PATCHES = {
+_KNOWN_DIAGNOSTIC_PATCHES = {
     "citation": (
-        "\n\nDIAGNOSTIC PATCH (citation was lowest last iteration): EVERY single sentence "
-        "that states a fact MUST end with `[https://exact-source-url]` immediately before "
-        "the period. Do NOT add a 'References' section. Prose attribution like 'according "
-        "to Wikipedia' does not count — only inline `[https://...]` brackets count."
+        "EVERY single sentence that states a fact MUST end with `[https://exact-source-url]` "
+        "immediately before the period. Do NOT add a 'References' section. Prose attribution "
+        "like 'according to Wikipedia' does not count — only inline `[https://...]` brackets count."
     ),
     "coverage": (
-        "\n\nDIAGNOSTIC PATCH (coverage was lowest last iteration): Cite at least 5 "
-        "DIFFERENT domain URLs across your answer. Do not cite the same URL more than "
-        "twice. Spread citations across multiple sentences using different sources for "
-        "different facts."
+        "Cite at least 5 DIFFERENT domain URLs across your answer. Do not cite the same URL "
+        "more than twice. Spread citations across multiple sentences using different sources "
+        "for different facts."
     ),
     "synthesis": (
-        "\n\nDIAGNOSTIC PATCH (synthesis was lowest last iteration): Write coherent "
-        "multi-sentence prose that explicitly connects facts (use transitions like "
-        "'because', 'as a result', 'furthermore'). Do not produce a list of disconnected "
+        "Write coherent multi-sentence prose that explicitly connects facts (use transitions "
+        "like 'because', 'as a result', 'furthermore'). Do not produce a list of disconnected "
         "bullet points. Show why facts matter together, not just that they are true."
     ),
     "accuracy": (
-        "\n\nDIAGNOSTIC PATCH (accuracy was lowest last iteration): State only facts "
-        "that appear verbatim in the provided sources. If a fact is not in the sources, "
-        "do not include it. Quote source phrasings closely rather than paraphrasing."
+        "State only facts that appear verbatim in the provided sources. If a fact is not in "
+        "the sources, do not include it. Quote source phrasings closely rather than paraphrasing."
     ),
 }
 
 
-def _diagnose_patch(prev_average: dict) -> str:
+def _generate_patch_for_unknown_criterion(criterion_name: str, score: float, criterion_description: str = "") -> str:
+    """LLM-generate a targeted improvement instruction for a criterion not in the known set."""
+    try:
+        client = OpenAI(api_key=config.OPENAI_API_KEY)
+        prompt = (
+            f"An AI agent was scored on the criterion '{criterion_name}' "
+            f"({criterion_description or 'no description provided'}) and got {score:.1f}/10. "
+            f"Write a single concise instruction (40-70 words) that the agent should follow "
+            f"to improve specifically on '{criterion_name}'. Output ONLY the instruction, "
+            f"no preamble, no quotes."
+        )
+        response = client.chat.completions.create(
+            model=config.MODEL_WEAK,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        import sys
+        print(f"[stem_agent] dynamic patch generation failed: {type(e).__name__}: {e}", file=sys.stderr)
+        return f"Improve the '{criterion_name}' aspect of your answer; previous score was {score:.1f}/10."
+
+
+def _diagnose_patch(prev_average: dict, rubric: list | None = None) -> tuple[str, str]:
+    """Return (patch_text, weakest_criterion_name). patch_text is empty string if no diagnosis possible."""
     if not prev_average:
-        return ""
-    criteria = {k: prev_average.get(k, 10.0) for k in ("accuracy", "coverage", "synthesis", "citation")}
-    weakest = min(criteria, key=criteria.get)
-    return _DIAGNOSTIC_PATCHES.get(weakest, "")
+        return "", ""
+    if rubric:
+        criteria_names = [c["name"] for c in rubric]
+    else:
+        criteria_names = ["accuracy", "coverage", "synthesis", "citation"]
+    scored = {n: prev_average.get(n, 10.0) for n in criteria_names if n in prev_average}
+    if not scored:
+        return "", ""
+    weakest = min(scored, key=scored.get)
+    score = scored[weakest]
+    if weakest in _KNOWN_DIAGNOSTIC_PATCHES:
+        body = _KNOWN_DIAGNOSTIC_PATCHES[weakest]
+    else:
+        description = ""
+        if rubric:
+            for c in rubric:
+                if c["name"] == weakest:
+                    description = c.get("description", "")
+                    break
+        body = _generate_patch_for_unknown_criterion(weakest, score, description)
+    return f"\n\nDIAGNOSTIC PATCH ({weakest} was lowest last iteration, score {score:.1f}/10): {body}", weakest
 
 
 class StemAgent:
@@ -70,14 +107,10 @@ class StemAgent:
 
             patched_prompt = spec_result["system_prompt"]
             if getattr(config, "DIAGNOSE_AND_REFINE", True) and last_average is not None:
-                patch = _diagnose_patch(last_average)
+                patch, weakest = _diagnose_patch(last_average, profile.rubric)
                 if patch:
                     patched_prompt = patched_prompt + patch
-                    weakest = min(
-                        ("accuracy", "coverage", "synthesis", "citation"),
-                        key=lambda k: last_average.get(k, 10.0),
-                    )
-                    print(f"[Iteration {iteration}] Diagnostic patch applied (weakest: {weakest}, score {last_average.get(weakest):.1f})")
+                    print(f"[Iteration {iteration}] Diagnostic patch applied (weakest: {weakest}, score {last_average.get(weakest, 0):.1f})")
 
             print(f"[Iteration {iteration}] Evaluating...")
             eval_schemas = spec_result["tool_schemas"]

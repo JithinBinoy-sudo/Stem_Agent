@@ -84,3 +84,39 @@ def test_run_triggers_rollback_on_regression(tmp_path):
 
         agent.run("Deep Research")
     MockVM.return_value.rollback.assert_called()
+
+
+# Phase 4: dynamic diagnostic patch tests
+
+def test_diagnose_patch_uses_known_template_for_citation():
+    from stem_agent import _diagnose_patch
+    prev = {"accuracy": 9.0, "coverage": 8.0, "synthesis": 7.0, "citation": 1.0, "composite": 50.0}
+    rubric = [
+        {"name": "accuracy", "weight": 0.35, "method": "llm"},
+        {"name": "synthesis", "weight": 0.25, "method": "llm"},
+        {"name": "coverage", "weight": 0.25, "method": "deterministic"},
+        {"name": "citation", "weight": 0.15, "method": "deterministic"},
+    ]
+    patch, weakest = _diagnose_patch(prev, rubric)
+    assert weakest == "citation"
+    assert "EVERY single sentence" in patch
+    assert "https://exact-source-url" in patch
+
+
+def test_diagnose_patch_generates_dynamically_for_unknown_criterion():
+    from stem_agent import _diagnose_patch
+    prev = {"correctness": 9.0, "security": 2.0, "style": 7.0, "composite": 50.0}
+    rubric = [
+        {"name": "correctness", "weight": 0.4, "method": "llm", "description": "code is functionally correct"},
+        {"name": "security", "weight": 0.4, "method": "llm", "description": "code has no security holes"},
+        {"name": "style", "weight": 0.2, "method": "llm", "description": "code follows style conventions"},
+    ]
+    with patch("stem_agent.OpenAI") as MockOpenAI:
+        fake_response = MagicMock()
+        fake_response.choices = [MagicMock()]
+        fake_response.choices[0].message.content = "Audit input boundaries and avoid eval/exec calls."
+        MockOpenAI.return_value.chat.completions.create.return_value = fake_response
+        patch_text, weakest = _diagnose_patch(prev, rubric)
+    assert weakest == "security"
+    assert "security was lowest" in patch_text
+    assert "Audit input boundaries" in patch_text
