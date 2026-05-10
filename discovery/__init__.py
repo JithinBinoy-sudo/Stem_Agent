@@ -59,8 +59,31 @@ class DiscoveryEngine:
             if cached:
                 return cached
 
+        manual_path = os.path.join("domain_profiles", f"{self._slug(domain)}.json")
+        if os.path.exists(manual_path):
+            with open(manual_path) as f:
+                data = json.load(f)
+            tool_specs = {
+                name: ToolSpec(**spec) for name, spec in data.get("tool_specs", {}).items()
+            }
+            profile = DomainProfile(
+                domain=data["domain"],
+                workflow=data["workflow"],
+                required_tools=data["required_tools"],
+                tool_specs=tool_specs,
+                quality_criteria=data["quality_criteria"],
+                requires_web_research=bool(data.get("requires_web_research", True)),
+                requires_citations=bool(data.get("requires_citations", True)),
+                rubric=data.get("rubric") or DEFAULT_RUBRIC,
+            )
+            self._save_cache(profile)
+            return profile
+
         profile = self._introspector.introspect(domain)
         self._researcher.research(domain)  # informational; results merged into future iterations
 
         self._save_cache(profile)
         return profile
+
+    def _slug(self, domain: str) -> str:
+        return domain.lower().replace(" ", "_")

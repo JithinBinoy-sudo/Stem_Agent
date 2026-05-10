@@ -1,0 +1,59 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "query": "Review this Python function and identify all bugs and security issues:\n\n```python\ndef get_user(user_id):\n    query = f\"SELECT * FROM users WHERE id = {user_id}\"\n    return db.execute(query).fetchone()\n```",
+      "reference_answer": "Critical SQL injection vulnerability: user_id is interpolated directly into the SQL string via an f-string, allowing an attacker to inject arbitrary SQL (e.g., user_id='1 OR 1=1' returns all users). The fix is to use a parameterized query: db.execute('SELECT * FROM users WHERE id = ?', (user_id,)). Additional issues: the function uses SELECT * (overfetches), has no error handling for missing rows, and silently returns None which can cause downstream NoneType errors. The function name should be plural-aware or document the single-row assumption.",
+      "key_facts": [
+        "SQL injection via f-string interpolation",
+        "Fix: parameterized query with placeholder",
+        "Secondary: SELECT * overfetches columns",
+        "Secondary: no handling for missing user (None return)"
+      ]
+    },
+    {
+      "id": 2,
+      "query": "Review this code for correctness and idiomatic style:\n\n```python\ndef calculate_average(numbers):\n    sum = 0\n    for i in range(0, len(numbers)):\n        sum = sum + numbers[i]\n    return sum / len(numbers)\n```",
+      "reference_answer": "Bug: division by zero when numbers is empty. Add an explicit guard like 'if not numbers: raise ValueError(\"empty input\")' or return None/0 with documented behavior. Style issues: shadowing the built-in sum() name should be avoided (use 'total' instead). The loop should be 'for n in numbers' rather than indexing via range(len()) — more Pythonic and avoids the off-by-one risk. The whole function can be replaced by 'sum(numbers) / len(numbers)' or use statistics.mean(numbers) which already handles empty input by raising StatisticsError.",
+      "key_facts": [
+        "Division by zero on empty list",
+        "Shadows built-in sum()",
+        "Should iterate directly: for n in numbers",
+        "statistics.mean is the idiomatic alternative"
+      ]
+    },
+    {
+      "id": 3,
+      "query": "Review this React component for issues:\n\n```jsx\nfunction UserList({ users }) {\n  return (\n    <ul>\n      {users.map((user, idx) => (\n        <li key={idx} onClick={() => deleteUser(user.id)}>\n          {user.name}\n        </li>\n      ))}\n    </ul>\n  );\n}\n```",
+      "reference_answer": "Three issues. (1) Using array index as the React key is an anti-pattern when the list is mutable: deleting an item shifts indices and breaks component identity, causing stale state and re-renders. Use a stable id like user.id as the key. (2) The onClick handler is recreated on every render, which can cause downstream re-renders if children are memoized; for large lists this is wasteful — consider extracting a callback or using useCallback. (3) deleteUser is a free variable from the enclosing scope — better to pass it as a prop for testability and clarity. Also no accessibility consideration: clickable list items should be buttons or have role and keyboard handlers.",
+      "key_facts": [
+        "Array index as key breaks identity on mutation",
+        "Use user.id as stable key",
+        "deleteUser is an undeclared free variable",
+        "Accessibility: use button or add role/keyboard handlers"
+      ]
+    },
+    {
+      "id": 4,
+      "query": "Review this API endpoint handler:\n\n```python\n@app.route('/file')\ndef get_file():\n    filename = request.args.get('name')\n    with open(f'uploads/{filename}', 'r') as f:\n        return f.read()\n```",
+      "reference_answer": "Critical path traversal vulnerability: an attacker can pass name='../../etc/passwd' to read arbitrary files outside the uploads directory. Mitigations include: (1) validate filename against a whitelist or enforce that os.path.normpath of the joined path stays inside the uploads directory; use werkzeug.utils.secure_filename which strips path separators; (2) avoid string concatenation for paths — use os.path.join and resolve+verify the result. Additional issues: no authentication or authorization check, no rate limiting, no MIME type set on response, no handling for missing files (FileNotFoundError raises 500), and reads entire file into memory which is a DoS vector for large files (use send_file with conditional ranges).",
+      "key_facts": [
+        "Path traversal via ../ in name parameter",
+        "Use werkzeug.secure_filename and validate within uploads dir",
+        "Missing authentication/authorization check",
+        "Missing FileNotFoundError handling causes 500 errors"
+      ]
+    },
+    {
+      "id": 5,
+      "query": "Review this concurrent code:\n\n```python\nfrom threading import Thread\n\ncounter = 0\n\ndef increment():\n    global counter\n    for _ in range(1000):\n        counter += 1\n\nthreads = [Thread(target=increment) for _ in range(10)]\nfor t in threads: t.start()\nfor t in threads: t.join()\nprint(counter)\n```",
+      "reference_answer": "Race condition: counter += 1 is not atomic — it compiles to a load, add, and store sequence. With 10 threads incrementing 1000 times each, the expected value is 10000 but actual results will be lower and non-deterministic because writes can be lost when two threads read the same value before either stores back. Fix with a threading.Lock around the increment, or use itertools.count, or queue.Queue, or atomic primitives. Note: due to the GIL the symptom is less obvious in CPython but still occurs because the GIL can release between bytecode operations. For this specific use case, summing per-thread totals at the end (no shared state) or using multiprocessing.Value with a lock would also work.",
+      "key_facts": [
+        "Race condition: counter += 1 is not atomic",
+        "Lost-update problem under concurrent execution",
+        "Fix: threading.Lock or per-thread accumulators",
+        "GIL makes the bug rarer in CPython but does not eliminate it"
+      ]
+    }
+  ]
+}

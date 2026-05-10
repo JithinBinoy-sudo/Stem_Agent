@@ -74,3 +74,31 @@ def test_scores_json_records_iteration(tmp_path):
     assert len(history) >= 1
     assert "composite" in history[0]
     assert "iteration" in history[0]
+
+
+# Phase 5: generalization across domains
+
+def test_code_review_domain_loads_manual_profile_with_custom_rubric(tmp_path, monkeypatch):
+    """Verify the Code Review domain pulls its manual profile and that the custom rubric flows through."""
+    from discovery import DiscoveryEngine
+    monkeypatch.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    cache_dir = str(tmp_path / "cache")
+    engine = DiscoveryEngine(cache_dir=cache_dir)
+    profile = engine.run("Code Review")
+    assert profile.requires_web_research is False
+    assert profile.requires_citations is False
+    rubric_names = [c["name"] for c in profile.rubric]
+    assert rubric_names == ["correctness", "security", "actionability", "conciseness"]
+    assert all(c["method"] == "llm" for c in profile.rubric)
+    assert sum(c["weight"] for c in profile.rubric) == pytest.approx(1.0)
+
+
+def test_code_review_benchmark_loads_with_five_tasks():
+    """The code_review.json benchmark should load and have the same shape as deep_research."""
+    from stem_agent import StemAgent
+    agent = StemAgent.__new__(StemAgent)
+    tasks = agent._load_tasks("Code Review")
+    assert len(tasks) == 5
+    for t in tasks:
+        assert "id" in t and "query" in t and "reference_answer" in t
+        assert "```" in t["query"]  # all code review tasks contain code blocks

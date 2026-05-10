@@ -1,0 +1,46 @@
+{
+  "domain": "Code Review",
+  "workflow": [
+    "Read the code carefully and understand the intent",
+    "Identify functional bugs (off-by-one, null handling, logic errors)",
+    "Identify security issues (injection, traversal, auth, secrets)",
+    "Identify style/idiomatic issues (PEP 8, language conventions)",
+    "Suggest concrete fixes with code examples"
+  ],
+  "required_tools": ["web_search", "url_reader"],
+  "tool_specs": {},
+  "quality_criteria": [
+    "correctness identification",
+    "security awareness",
+    "actionable fix suggestions",
+    "concise and prioritized review"
+  ],
+  "requires_web_research": false,
+  "requires_citations": false,
+  "rubric": [
+    {
+      "name": "correctness",
+      "weight": 0.3,
+      "method": "llm",
+      "description": "Did the review identify the functional bugs in the code (off-by-one, null handling, edge cases)? 0 = missed all bugs; 10 = caught every bug in the reference answer"
+    },
+    {
+      "name": "security",
+      "weight": 0.3,
+      "method": "llm",
+      "description": "Did the review identify the security issues (injection, traversal, auth, secrets, race conditions)? 0 = missed all security flaws; 10 = identified every security issue in the reference answer"
+    },
+    {
+      "name": "actionability",
+      "weight": 0.2,
+      "method": "llm",
+      "description": "Did the review suggest concrete fixes the developer can apply, ideally with code examples? 0 = vague advice only; 10 = clear, specific fixes with example code"
+    },
+    {
+      "name": "conciseness",
+      "weight": 0.2,
+      "method": "llm",
+      "description": "Was the review well-organized and proportional to the issues found? 0 = rambling or padded; 10 = tight, prioritized, no fluff"
+    }
+  ]
+}
